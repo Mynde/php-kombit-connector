@@ -26,9 +26,18 @@ $private = openssl_pkey_get_private($cert_info['pkey']);
 
 // Buidling reqeust (body and header) - body first, so header kan sign it. 
 $body = WSTRUST::getRST($appliesTo, $cvr, $issuer, $cert_key);
-$header = WSTRUST::getRSTHeader($endpoint, $cert_key, $private, $body, $cert_info['pkey']);
+$header = WSTRUST::getRSTHeader($endpoint, $cert_key);
 
-$result = HTTP::doSOAP($endpoint, $header, $body);
+$request = <<<XML
+<soap:Envelope xmlns:soap="http://www.w3.org/2003/05/soap-envelope">
+    $header
+    $body
+</soap:Envelope>
+XML;
+
+$request_signed = WSTRUST::getRSTSigned($request, $private);
+
+$result = HTTP::doSOAP($endpoint, $request_signed);
 
 /**
  * Currently not processed further, so code below exit do not work and hasn't been tested!

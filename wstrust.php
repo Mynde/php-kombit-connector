@@ -51,58 +51,15 @@ XML;
         
     }
 
-    static function getRSTHeader($to, $cert_key, $priv_key, $body, $priv_key_raw, $action = 'http://docs.oasis-open.org/ws-sx/ws-trust/200512/RST/Issue') {
-
-        $tok_ref_uuid = WSTRUST::gen_uuid();
-        $key_info_uuid = WSTRUST::gen_uuid();
-        $token_uuid = WSTRUST::gen_uuid();
-        $signature_uuid = WSTRUST::gen_uuid();
+    static function getRSTHeader($to, $cert_key, $action = 'http://docs.oasis-open.org/ws-sx/ws-trust/200512/RST/Issue') {
         
-        $_token = WSTRUST::getCertificateToken($cert_key, $token_uuid);
+        $_token = WSTRUST::getCertificateToken($cert_key, WSTRUST::gen_uuid());
         $_timestamp = WSTRUST::getTimestampHeader(WSTRUST::gen_uuid());
         $_action = '<Action xmlns="http://www.w3.org/2005/08/addressing" xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd" wsu:Id="_'.WSTRUST::gen_uuid().'">'.$action.'</Action>';
         $_message = '<MessageID xmlns="http://www.w3.org/2005/08/addressing" xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd" wsu:Id="_'.WSTRUST::gen_uuid().'">urn:uuid:'.WSTRUST::gen_uuid().'</MessageID>';
         $_reply = '<ReplyTo xmlns="http://www.w3.org/2005/08/addressing" xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd" wsu:Id="_'.WSTRUST::gen_uuid().'"><Address>http://www.w3.org/2005/08/addressing/anonymous</Address></ReplyTo>';
         $_to = '<To xmlns="http://www.w3.org/2005/08/addressing" xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd" wsu:Id="_'.WSTRUST::gen_uuid().'">'.$to.'</To>';
 
-        $references = "";
-        $references .= WSTRUST::getReference($_timestamp); //1
-        $references .= WSTRUST::getReference($body); //2
-        $references .= WSTRUST::getReference($_to); //3
-        $references .= WSTRUST::getReference($_reply); //4
-        $references .= WSTRUST::getReference($_message); // 5
-        $references .= WSTRUST::getReference($_action); // 6
-        $references .= WSTRUST::getReference($_token); // 7
-
-        $signedInfo = <<<XML
-<ds:SignedInfo>
-    <ds:CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/>
-    <ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/>
-    $references
-</ds:SignedInfo>
-XML;
-        
-        $d = new DOMDocument();
-        @$d->loadXML($signedInfo);
-        $canonicalXml = $d->documentElement->C14N(TRUE, FALSE);
-        //$signatureValueAlternative = base64_encode(hash_hmac('SHA256', $canonicalXml , $priv_key_raw, TRUE)); // remember to get raw key in as paramenter with --- begin private --?
-        
-        openssl_sign($canonicalXml, $signatureValue, $priv_key, 'RSA-SHA256'); // OPENSSL_ALGO_SHA256 OR 'RSA-SHA256'
-        $signatureValue = base64_encode($signatureValue);
-
-        $signature = <<<XML
-<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" Id="SIG-$signature_uuid">
-    $signedInfo
-    <ds:SignatureValue>$signatureValue</ds:SignatureValue>
-    <ds:KeyInfo Id="KI-$key_info_uuid">
-        <wsse:SecurityTokenReference xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd" xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd" wsu:Id="STR-$tok_ref_uuid">
-          <wsse:Reference URI="#X509-$token_uuid" ValueType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3"/>              
-        </wsse:SecurityTokenReference>
-    </ds:KeyInfo>
-</ds:Signature>
-XML;
-
-        
         // In header: ?? <sbf:Framework xmlns:ns1="urn:liberty:sb:profile" xmlns:sbf="urn:liberty:sb:2006-08" ns1:profile="urn:liberty:sb:profile:basic" version="2.0"/>
         return <<<XML
 <soap:Header>
@@ -113,28 +70,90 @@ XML;
     <wsse:Security xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd" xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd" soap:mustUnderstand="true">
         $_timestamp
         $_token
-        $signature
     </wsse:Security>
 </soap:Header>
 XML;
     }
+    
+     static function getRSTSigned($request_simple, $priv_key) {
+        
+        $d_r = new DOMDocument();
+        $d_r->loadXML($request_simple);
+        
+        $token_uuid = WSTRUST::getDocEleId($d_r->getElementsByTagName('BinarySecurityToken')[0]); //TODO (GET FROM REQUEST)
+        $signature_uuid = WSTRUST::gen_uuid();
+        $key_info_uuid = WSTRUST::gen_uuid();
+        $tok_ref_uuid = WSTRUST::gen_uuid();
+        
+        $references = "";
+        $references .= WSTRUST::getReferenceByTag('Timestamp', $request_simple); //1
+        $references .= WSTRUST::getReferenceByTag('Body', $request_simple); //2
+        $references .= WSTRUST::getReferenceByTag('To', $request_simple); //3
+        $references .= WSTRUST::getReferenceByTag('ReplyTo', $request_simple); //4
+        $references .= WSTRUST::getReferenceByTag('MessageID', $request_simple); // 5
+        $references .= WSTRUST::getReferenceByTag('Action', $request_simple); // 6
+        $references .= WSTRUST::getReferenceByTag('BinarySecurityToken', $request_simple); // 7
 
-    static function getReference($data) {
+        $signedInfo = <<<XML
+<ds:SignedInfo>
+    <ds:CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/>
+    <ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/>
+    $references
+</ds:SignedInfo>
+XML;
+        
+        $signature = <<<XML
+<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" Id="SIG-$signature_uuid">
+    $signedInfo
+    <ds:SignatureValue></ds:SignatureValue>
+    <ds:KeyInfo Id="KI-$key_info_uuid">
+        <wsse:SecurityTokenReference xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd" xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd" wsu:Id="STR-$tok_ref_uuid">
+          <wsse:Reference URI="#$token_uuid" ValueType="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-x509-token-profile-1.0#X509v3"/>              
+        </wsse:SecurityTokenReference>
+    </ds:KeyInfo>
+</ds:Signature>
+XML;
+        $d_s = new DOMDocument();
+        $d_s->loadXML($signature);
+        $si_ele = $d_s->getElementsByTagName('SignedInfo')[0];
+        $si_ele_can = $si_ele->C14N(TRUE, FALSE);
+        
+        openssl_sign($si_ele_can, $signatureValue, $priv_key, 'sha256WithRSAEncryption'); // OPENSSL_ALGO_SHA256 OR 'RSA-SHA256'
+        $signatureValue = base64_encode($signatureValue);
+        
+        // Insert signaturevalue 
+        $d_s->getElementsByTagName('SignatureValue')[0]->nodeValue = $signatureValue;
+                
+        // Insert signature in header....
+        $node = $d_r->importNode($d_s->documentElement, true);
+        
+        $d_r->getElementsByTagName('Security')[0]->appendChild($node);
+        
+        // In header: ?? <sbf:Framework xmlns:ns1="urn:liberty:sb:profile" xmlns:sbf="urn:liberty:sb:2006-08" ns1:profile="urn:liberty:sb:profile:basic" version="2.0"/>
+        return $d_r->saveXML($d_r->documentElement);
+    }
 
-        $dom = new DOMDocument($data);
-        @$dom->loadXML($data);
-        $canonicalXml = $dom->documentElement->C14N(TRUE, FALSE);
+    // Extract "Id" attribute from xml data
+    static function getDocEleId($docEle) {
+        for ($i = 0; $i < $docEle->attributes->length; ++$i) {
+            if(strpos($docEle->attributes->item($i)->name, 'Id') !== false) {
+                return $docEle->attributes->item($i)->value;
+            }
+        }
+        return null;
+    }
+    
+    static function getReferenceByTag($tagName, $request) {
+
+        $dom = new DOMDocument();
+        $dom->loadXML($request);
+        $tag = $dom->getElementsByTagName($tagName)[0];
+        $canonicalXml = $tag->C14N(TRUE, FALSE);
         
         $digestValue = base64_encode(openssl_digest($canonicalXml, 'SHA256', true));
         
         // Extract "Id" attribute from xml data
-        $refURI = "";
-        for ($i = 0; $i < $dom->documentElement->attributes->length; ++$i) {
-            if(strpos($dom->documentElement->attributes->item($i)->name, 'Id') !== false) {
-                $refURI = $dom->documentElement->attributes->item($i)->value;
-                break;
-            }
-        }
+        $refURI = WSTRUST::getDocEleId($tag);
 
         return <<<XML
 <ds:Reference URI="#$refURI">
@@ -193,7 +212,6 @@ XML;
      * Reading responses
      * ---------------------------------------------------------------------
      */
-
 
     static function parseRSTR($result) {
         $dom = new DOMDocument();

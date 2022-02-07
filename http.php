@@ -88,15 +88,8 @@ class HTTP {
             return (substr($string, 0, $len) === $startString);
         }
         
-	static public function doSoap($url, $header, $body, $user = NULL, $password = NULL, $version = 'http://www.w3.org/2003/05/soap-envelope', $ctype = 'application/soap+xml') {
+	static public function doSoap($url, $request, $user = NULL, $password = NULL, $version = 'http://www.w3.org/2003/05/soap-envelope', $ctype = 'application/soap+xml') {
             $o = HTTP::getInstance($url, $user, $password);
-
-            $request = <<<XML
-<soap:Envelope xmlns:soap="$version">
-    $header
-    $body
-</soap:Envelope>
-XML;
 
             if (HTTP::$HTTP_DEBUG) {
                     print "\n # SOAP Request to $url: #<br><br><pre>";
