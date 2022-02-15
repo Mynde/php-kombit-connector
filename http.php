@@ -2,7 +2,7 @@
 
 class HTTP {
 	
-	static $HTTP_DEBUG = 1;
+	static $HTTP_DEBUG = 0;
         
 	// don't use this in production!
 	static $HTTP_SSL_VERIFY_PEER = 1;
@@ -25,14 +25,18 @@ class HTTP {
 	}
 	
 	private function doExec($url, $post = NULL, $cookies = NULL) {
+            
 		if ($post != NULL) {
-			curl_setopt($this->ch, CURLOPT_POSTFIELDS, $post);
-		}
-		if ($cookies != NULL) {
-			curl_setopt($this->ch, CURLOPT_COOKIEJAR, $cookies);
-			curl_setopt($this->ch, CURLOPT_COOKIEFILE, $cookies);			
+                    // workaround curl version peculiarity
+                    curl_setopt($this->ch, CURLOPT_POST, true);
+                    curl_setopt($this->ch, CURLOPT_POSTFIELDS, $post);
 		}
                 
+		if ($cookies != NULL) {
+		    curl_setopt($this->ch, CURLOPT_COOKIEJAR, $cookies);
+                    curl_setopt($this->ch, CURLOPT_COOKIEFILE, $cookies);			
+		}
+                                
 		$result = curl_exec($this->ch);
                 
                 print_r(curl_error($this->ch));
@@ -88,7 +92,7 @@ class HTTP {
             return (substr($string, 0, $len) === $startString);
         }
         
-	static public function doSoap($url, $request, $user = NULL, $password = NULL, $version = 'http://www.w3.org/2003/05/soap-envelope', $ctype = 'application/soap+xml') {
+	static public function doSoap($url, $request, $action = NULL, $user = NULL, $password = NULL, $version = 'http://www.w3.org/2003/05/soap-envelope', $ctype = 'application/soap+xml') {
             $o = HTTP::getInstance($url, $user, $password);
 
             if (HTTP::$HTTP_DEBUG) {
@@ -96,20 +100,28 @@ class HTTP {
                     var_dump($request);
                     print "</pre><br><br><br>";
             }
-            // workaround curl version peculiarity
-            curl_setopt($o->getHandle(), CURLOPT_POST, true);
-
-            curl_setopt($o->getHandle(), CURLOPT_POSTFIELDS, $request);
-
+            
             curl_setopt($o->getHandle(), CURLOPT_SSLVERSION, 6);      
             
-            // removed header 'SOAPAction: ' . $url,  due to soap1.2
-            curl_setopt($o->getHandle(), CURLOPT_HTTPHEADER, array(
-                'Content-Type: ' . $ctype . '; charset=utf-8',
-                )
-            );
+  
+            if($action != NULL) {
+                //array_push($headers, );
+                $headers =  array('Content-Type: ' . $ctype . '; charset=utf-8; action="'.$action.'"', "Content-Length: ". strlen($request));
+                // TODO: Needed?
+                // openssl x509 -inform der -in "C:\Users\hmynderup\Documents\NetBeansProjects\KOMBITConnector\certificates\KOMBIT AS - test-ekstern-adgangsstyring.cer" -out "C:\Users\hmynderup\Documents\NetBeansProjects\KOMBITConnector\certificates\KOMBIT AS - test-ekstern-adgangsstyring.pem"
+                curl_setopt($o->getHandle(), CURLOPT_CAINFO, "certificates/GlobalSign Root CA - R3.pem");
+                curl_setopt($o->getHandle(), CURLOPT_CAINFO, "certificates/TRUST2408 OCES Primary CA.pem");
+                curl_setopt($o->getHandle(), CURLOPT_CAINFO, "certificates/TRUST2408 Systemtest VII Primary CA.pem");
+                curl_setopt($o->getHandle(), CURLOPT_CAINFO, "certificates/TRUST2408 Systemtest XXXIV CA.pem");
+                curl_setopt($o->getHandle(), CURLOPT_CAINFO, "certificates/KOMBIT AS - test-ekstern-adgangsstyring.pem");
+                curl_setopt($o->getHandle(), CURLOPT_CAINFO, "certificates/Organisation_T.pem");
+            } else {
+                $headers =  array('Content-Type: ' . $ctype . '; charset=utf-8', "Content-Length: ". strlen($request));
+            }
+            
+            curl_setopt($o->getHandle(), CURLOPT_HTTPHEADER, $headers);
 
-            $res = $o->doExec($url);
+            $res = $o->doExec($url, $request);
 
             return $res;
 	}
