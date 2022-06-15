@@ -75,6 +75,8 @@ XML;
     static function getRSTSigned($request_simple, $priv_key) {
         
         $d_r = new DOMDocument();
+        $d_r->preserveWhiteSpace = true;
+        $d_r->formatOutput = true;
         $d_r->loadXML($request_simple);
         
         $token_uuid = self::getDocEleId($d_r->getElementsByTagName('BinarySecurityToken')[0]);

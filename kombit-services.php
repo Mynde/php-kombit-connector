@@ -12,104 +12,129 @@ class KOMBIT {
 
     static function getBodyBrugerLaes($uuid) {
         
-        $body_id = KOMBIT::gen_uuid();
+        $body_id = self::gen_uuid();
         
         return <<<XML
-<soap:Body xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd" wsu:Id="_$body_id">
-    <ns4:LaesInput xmlns="http://kombit.dk/xml/schemas/RequestHeader/1/" xmlns:ns2="urn:oio:sagdok:3.0.0" xmlns:ns3="http://stoettesystemerne.dk/klassifikation/klasse/6/" xmlns:ns4="http://stoettesystemerne.dk/organisation/bruger/6/" xmlns:ns5="http://stoettesystemerne.dk/organisation/6/" xmlns:ns6="urn:oio:sts:6" xmlns:ns7="urn:oio:sts:part:6">
-      <ns2:UUIDIdentifikator>$uuid</ns2:UUIDIdentifikator>
-    </ns4:LaesInput>
-</soap:Body>
+<s:Body u:Id="_1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <LaesInput xmlns="http://stoettesystemerne.dk/organisation/bruger/6/">
+        <UUIDIdentifikator xmlns="urn:oio:sagdok:3.0.0">$uuid</UUIDIdentifikator>
+    </LaesInput>
+</s:Body>
 XML;        
     }
 
-    static function getHeader($to, $action, $token) {
+    static function getHeader($to, $action, $token_raw) {
         
-        $_timestamp = KOMBIT::getTimestampHeader(KOMBIT::gen_uuid());
-        $_action = '<Action xmlns="http://www.w3.org/2005/08/addressing" xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd" wsu:Id="_'.KOMBIT::gen_uuid().'">'.$action.'</Action>';
-        $_message = '<MessageID xmlns="http://www.w3.org/2005/08/addressing" xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd" wsu:Id="_'.KOMBIT::gen_uuid().'">urn:uuid:'.KOMBIT::gen_uuid().'</MessageID>';
-        $_to = '<To xmlns="http://www.w3.org/2005/08/addressing" xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd" wsu:Id="_'.KOMBIT::gen_uuid().'">'.$to.'</To>';
-        $_reply = '<ReplyTo xmlns="http://www.w3.org/2005/08/addressing" xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd" wsu:Id="_'.KOMBIT::gen_uuid().'"><Address>http://www.w3.org/2005/08/addressing/anonymous</Address></ReplyTo>';
+        $_timestamp = self::getTimestampHeader(self::gen_uuid());
+        $_action = '<a:Action s:mustUnderstand="1" u:Id="_2">'.$action.'</a:Action>';
+        $_message = '<a:MessageID u:Id="_3">urn:uuid:'.self::gen_uuid().'</a:MessageID>';
+        $_reply = '<a:ReplyTo u:Id="_4"><a:Address>http://www.w3.org/2005/08/addressing/anonymous</a:Address></a:ReplyTo>';
+        $_to = '<a:To s:mustUnderstand="1" u:Id="_5">'.$to.'</a:To>';
+       
+        $trans_uuid = self::gen_uuid();
         
         // TODO: Make both below dynamic with parameters.... maybe ns (namespaces) vary from service to service... must generate request from WSDL?
-        $_request_header = '<RequestHeader xmlns="http://kombit.dk/xml/schemas/RequestHeader/1/" xmlns:ns2="urn:oio:sagdok:3.0.0" xmlns:ns3="http://stoettesystemerne.dk/klassifikation/klasse/6/" xmlns:ns4="http://stoettesystemerne.dk/organisation/bruger/6/" xmlns:ns5="http://stoettesystemerne.dk/organisation/6/" xmlns:ns6="urn:oio:sts:6" xmlns:ns7="urn:oio:sts:part:6"><TransactionUUID>'.KOMBIT::gen_uuid().'</TransactionUUID></RequestHeader>';
+        $_request_header = <<<XML
+<h:RequestHeader xmlns:h="http://kombit.dk/xml/schemas/RequestHeader/1/" xmlns="http://kombit.dk/xml/schemas/RequestHeader/1/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+    <TransactionUUID>$trans_uuid</TransactionUUID>
+</h:RequestHeader>
+XML;
         
         $d_t = new DOMDocument();
-        $d_t->loadXML($token);
-        
+        $d_t->loadXML($token_raw);
         $token_uuid = self::getDocEleId($d_t->documentElement);
-        $_security_token_ref = '<wsse:SecurityTokenReference xmlns:b="http://docs.oasis-open.org/wss/oasis-wss-wssecurity-secext-1.1.xsd" b:TokenType="http://docs.oasis-open.org/wss/oasis-wss-saml-token-profile-1.1#SAMLV2.0" wsu:Id="_str'.$token_uuid.'"><wsse:KeyIdentifier ValueType="http://docs.oasis-open.org/wss/oasis-wss-saml-token-profile-1.1#SAMLID">'.$token_uuid.'</wsse:KeyIdentifier></wsse:SecurityTokenReference>';
         
-        // In header: ?? <sbf:Framework xmlns:ns1="urn:liberty:sb:profile" xmlns:sbf="urn:liberty:sb:2006-08" ns1:profile="urn:liberty:sb:profile:basic" version="2.0"/>
         return <<<XML
-<soap:Header>
+<s:Header>
+    <sbf:Framework xmlns:ns1="urn:liberty:sb:profile" xmlns:sbf="urn:liberty:sb:2006-08" ns1:profile="urn:liberty:sb:profile:basic" version="2.0"/>
     $_action
-    $_message
-    $_to
-    $_reply
     $_request_header
-    <wsse:Security xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd" xmlns:wsu="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-utility-1.0.xsd" soap:mustUnderstand="true">
+    $_message
+    $_reply
+    $_to
+    <o:Security s:mustUnderstand="1" xmlns:o="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd">
         $_timestamp
-        $token
-        $_security_token_ref
-    </wsse:Security>
-</soap:Header>
+        $token_raw
+        <o:SecurityTokenReference b:TokenType="http://docs.oasis-open.org/wss/oasis-wss-saml-token-profile-1.1#SAMLV2.0" u:Id="_str$token_uuid" xmlns:b="http://docs.oasis-open.org/wss/oasis-wss-wssecurity-secext-1.1.xsd">
+            <o:KeyIdentifier ValueType="http://docs.oasis-open.org/wss/oasis-wss-saml-token-profile-1.1#SAMLID">$token_uuid</o:KeyIdentifier>
+        </o:SecurityTokenReference>
+        <Signature xmlns="http://www.w3.org/2000/09/xmldsig#">
+            <SignedInfo>
+                <CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"></CanonicalizationMethod>
+                <SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"></SignatureMethod>
+            </SignedInfo>
+            <SignatureValue></SignatureValue>
+            <KeyInfo>
+                <o:SecurityTokenReference b:TokenType="http://docs.oasis-open.org/wss/oasis-wss-saml-token-profile-1.1#SAMLV2.0" xmlns:b="http://docs.oasis-open.org/wss/oasis-wss-wssecurity-secext-1.1.xsd">
+                    <o:KeyIdentifier ValueType="http://docs.oasis-open.org/wss/oasis-wss-saml-token-profile-1.1#SAMLID">$token_uuid</o:KeyIdentifier>
+                </o:SecurityTokenReference>
+            </KeyInfo>
+        </Signature>      
+    </o:Security>
+</s:Header>
 XML;
     }
     
-     static function getRequestSigned($request_simple, $priv_key) {
+    static function getRequestSigned($request_simple, $priv_key) {
         
-        $d_r = new DOMDocument();
+        $d_r = new DOMDocument('1.0', 'utf-8');
+        $d_r->preserveWhiteSpace = false;
+        $d_r->formatOutput = false;
         $d_r->loadXML($request_simple);
         
-        $token_uuid = KOMBIT::getDocEleId($d_r->getElementsByTagName('Assertion')[0]);
-        $signature_uuid = KOMBIT::gen_uuid();
-        $key_info_uuid = KOMBIT::gen_uuid();
+        $signature_uuid = self::gen_uuid();
+        $key_info_uuid = self::gen_uuid();
         
-        $references = "";
-        $references .= KOMBIT::getReferenceByTag('Body', $request_simple); //2
-        $references .= KOMBIT::getReferenceByTag('To', $request_simple); //3
-        $references .= KOMBIT::getReferenceByTag('ReplyTo', $request_simple); //4
-        $references .= KOMBIT::getReferenceByTag('MessageID', $request_simple); // 5
-        $references .= KOMBIT::getReferenceByTag('Action', $request_simple); // 6 //2
-        //$references .= KOMBIT::getReferenceByTag('Assertion', $request_simple); 
-        $references .= KOMBIT::getReferenceByTag('Timestamp', $request_simple); //1
-        $references .= KOMBIT::getReferenceByTag('SecurityTokenReference', $request_simple);
+        $sig_ele = $d_r->getElementsByTagName('Signature')[1];
+        $si_ele = $sig_ele->getElementsByTagName('SignedInfo')[0];
         
-        $signature = <<<XML
-<ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#" xmlns:wsse="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd" Id="SIG-$signature_uuid">
-    <ds:SignedInfo>
-        <ds:CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/>
-        <ds:SignatureMethod Algorithm="http://www.w3.org/2001/04/xmldsig-more#rsa-sha256"/>
-        $references
-    </ds:SignedInfo>
-    <ds:SignatureValue></ds:SignatureValue>
-    <ds:KeyInfo Id="KI-$key_info_uuid">
-        <SecurityTokenReference xmlns="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd" xmlns:b="http://docs.oasis-open.org/wss/oasis-wss-wssecurity-secext-1.1.xsd" b:TokenType="http://docs.oasis-open.org/wss/oasis-wss-saml-token-profile-1.1#SAMLV2.0">
-            <KeyIdentifier ValueType="http://docs.oasis-open.org/wss/oasis-wss-saml-token-profile-1.1#SAMLID">$token_uuid</KeyIdentifier>
-        </SecurityTokenReference>
-    </ds:KeyInfo>
-</ds:Signature>
-XML;
+        $referenceIds = array('Body', 'Action', 'MessageID', 'ReplyTo', 'To', 'Timestamp', 'SecurityTokenReference');
         
-        $d_s = new DOMDocument();
-        $d_s->loadXML($signature);        
-        $si_ele = $d_s->getElementsByTagName('SignedInfo')[0];
+        foreach ($referenceIds as &$value) {
+            $isSTR = ($value == 'SecurityTokenReference');
+            
+            $tags = $d_r->getElementsByTagName($value);
+            
+            $tag = $tags[0];
+            $tag_id = self::getDocEleId($tag);
+            
+            if($isSTR) {
+                $tag = $d_r->getElementsByTagName('Assertion')[0];
+            } 
+            
+            $canonicalXml = utf8_encode($tag->C14N(TRUE, FALSE));
+        
+            $digestValue = base64_encode(openssl_digest($canonicalXml, 'sha256', true));
+            
+            $reference = $si_ele->appendChild($d_r->createElementNS('http://www.w3.org/2000/09/xmldsig#', 'Reference'));
+            $reference->setAttribute('URI', "#{$tag_id}");
+            $transforms = $reference->appendChild($d_r->createElementNS('http://www.w3.org/2000/09/xmldsig#', 'Transforms'));
+            $transform = $transforms->appendChild($d_r->createElementNS('http://www.w3.org/2000/09/xmldsig#', 'Transform'));
+            
+            if($isSTR) {
+                $transform->setAttribute('Algorithm', 'http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#STR-Transform');
+                $transformationParameter = $transform->appendChild($d_r->createElementNS('http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd', 'TransformationParameters'));
+                $canonicalizationMethod = $transformationParameter->appendChild($d_r->createELementNS('http://www.w3.org/2000/09/xmldsig#','CanonicalizationMethod'));
+                $canonicalizationMethod->setAttribute('Algorithm', 'http://www.w3.org/2001/10/xml-exc-c14n#');
+            } else {
+                $transform->setAttribute('Algorithm', 'http://www.w3.org/2001/10/xml-exc-c14n#');
+            }
+            
+            $method = $reference->appendChild($d_r->createElementNS('http://www.w3.org/2000/09/xmldsig#', 'DigestMethod'));
+            $method->setAttribute('Algorithm', 'http://www.w3.org/2001/04/xmlenc#sha256');
+            $reference->appendChild($d_r->createElementNS('http://www.w3.org/2000/09/xmldsig#', 'DigestValue', $digestValue));
+        }
         
         $si_ele_can = $si_ele->C14N(TRUE, FALSE);
         
-        openssl_sign($si_ele_can, $signatureValue, $priv_key, 'sha256WithRSAEncryption'); // OPENSSL_ALGO_SHA256 OR 'RSA-SHA256'
+        openssl_sign($si_ele_can, $signatureValue, $priv_key, 'sha256WithRSAEncryption'); // OPENSSL_ALGO_SHA256 OR 'RSA-SHA256' OR 'sha256WithRSAEncryption'
         $signatureValue = base64_encode($signatureValue);
         
         // Insert signaturevalue 
-        $d_s->getElementsByTagName('SignatureValue')[0]->nodeValue = $signatureValue;
-                
-        // Insert signature in header....
-        $node = $d_r->importNode($d_s->documentElement, true);
-                
-        $d_r->getElementsByTagName('Security')[0]->appendChild($node);
+        $sig_ele->getElementsByTagName('SignatureValue')[0]->nodeValue = $signatureValue;
         
         return $d_r->saveXML($d_r->documentElement);
+        
     }
 
     // Extract "Id" attribute from xml data
@@ -122,50 +147,18 @@ XML;
         return null;
     }
     
-    static function getReferenceByTag($tagName, $request) {
-
-        $dom = new DOMDocument();
-        $dom->loadXML($request);
-        $tag = $dom->getElementsByTagName($tagName)[0];
-        
-        $refURI = KOMBIT::getDocEleId($tag);
-        $isSTR = (strpos($refURI, '_str_') !== false);
-        
-        $canonicalXml = null;
-        
-        if($isSTR) {
-            
-            $tag = $dom->getElementsByTagName('Assertion')[0];
-                        
-        } 
-        
-        $canonicalXml = $tag->C14N(TRUE, FALSE);
-            
-        $digestValue = base64_encode(openssl_digest($canonicalXml, 'SHA256', false));
-                
-        $transformXml = ($isSTR) ? '<ds:Transform Algorithm="http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-soap-message-security-1.0#STR-Transform"><wsse:TransformationParameters><ds:CanonicalizationMethod Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"/></wsse:TransformationParameters></ds:Transform>' : '<ds:Transform Algorithm="http://www.w3.org/2001/10/xml-exc-c14n#"></ds:Transform>';
-      
-        return <<<XML
-<ds:Reference URI="#$refURI">
-    <ds:Transforms>$transformXml</ds:Transforms>
-    <ds:DigestMethod Algorithm="http://www.w3.org/2001/04/xmlenc#sha256"/>
-    <ds:DigestValue>$digestValue</ds:DigestValue>
-</ds:Reference>
-XML;   
-    }
-
     static function getTimestamp($offset = 0) {
             return gmdate("Y-m-d\TH:i:s\Z", time() + $offset);
     }
 
     static function getTimestampHeader($timestampID = "_0") {
-        $c = KOMBIT::getTimestamp();
-        $e = KOMBIT::getTimestamp(300);
+        $c = self::getTimestamp();
+        $e = self::getTimestamp(300);
         return <<<XML
-<wsu:Timestamp wsu:Id="TS-$timestampID">
-    <wsu:Created>$c</wsu:Created>
-    <wsu:Expires>$e</wsu:Expires>
-</wsu:Timestamp>
+<u:Timestamp u:Id="uuid-$timestampID">
+    <u:Created>$c</u:Created>
+    <u:Expires>$e</u:Expires>
+</u:Timestamp>
 XML;
 }
    static function gen_uuid() {
